@@ -9,4 +9,5 @@ Simple python script to extract and store individual frames of a given video.
     ```bash
     sudo apt-get update && install ffmpeg
     ```
-3. Create a separate environment and install the 
+
+## TO DO: update usage  
