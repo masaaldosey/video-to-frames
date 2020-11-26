@@ -26,10 +26,10 @@ def videos_to_imgs(output_path=None,
         out_folder = output_path / file_name
         out_folder.mkdir(exist_ok=True)
 
-        # Writing time-stamps of each frame to `.txt` file
-        os.system(
-            f'ffprobe {video_path} -select_streams v -show_entries frame=coded_picture_number,pkt_pts_time -of csv=p=0:nk=1 -v 0 > {out_folder/file_name}.txt'
-        )
+        # # Writing time-stamps of each frame to `.txt` file
+        # os.system(
+        #     f'ffprobe {video_path} -select_streams v -show_entries frame=coded_picture_number,pkt_pts_time -of csv=p=0:nk=1 -v 0 > {out_folder/file_name}.txt'
+        # )
         # Extracting frames from each video in PNG format 
         os.system(
             f'ffmpeg -i {video_path} -vf "scale=250:250" -start_number 0 {out_folder/file_name}_%d.png'
@@ -40,8 +40,9 @@ def videos_to_imgs(output_path=None,
         with open(f'{out_folder/file_name}.txt') as file:
             for line in file:
                 (key, val) = line.strip().split(",")
+                key = float(key)
                 times_dict[val] = key
-        
+
         # Adding time-stamp corresponding to each frame in its name
         frames = list(out_folder.glob("*.png"))
         frames.sort()
@@ -49,9 +50,12 @@ def videos_to_imgs(output_path=None,
         # Renaming loop
         for frame in frames:
             try:
-                os.rename( frame.name, file_name+'_'+f'{times_dict[frame.stem.split("_")[1]]}'+'.png' )
+                new_name = file_name + '_f' + frame.name.split('_')[1].split('.')[0] + '_t' + f'{times_dict[frame.stem.split("_")[1]]}' + '.png'
+
+                frame.rename(new_name)
+
             except:
-                os.remove(frame.name)
+                frame.unlink()
         # Print to terminal after completion of extracting each video
         print("Done extracting: {}".format(i + 1))
 

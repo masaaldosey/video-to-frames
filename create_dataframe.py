@@ -17,7 +17,7 @@ def write_pkl(root_dir):
     # path to save `.csv` files
     out_path = root_dir
 
-    # tokens for column names in `.csv` files 
+    # tokens for column names in `.csv` files
     S_P = "start_preparation"
     E_P = "end_preparation"
     S_C = "start_clipping"
@@ -62,21 +62,42 @@ def write_pkl(root_dir):
         for col in range(2, len(columns)):
             phase_times[columns[col]] = values[col]
         
+        # token to account for delta between phase changes
+        delta = 0.0
+        for phase in range(0, )
         # accounting for delta between phases
-        # `end_preparation` and `start_clipping`
-        phase_times[E_P] = phase_times[E_P] + 
-                            ( (phase_times[S_C] - phase_times[E_P]) / 2) )
-        phase_times[S_C] = phase_times[S_C] - 
-                            ( (phase_times[S_C] - phase_times[E_P]) / 2 )
-        # `end_clipping` and `start_dissection`
+        # `start_clipping` and `end_preparation` 
+        delta = (phase_times[S_C] - phase_times[E_P]) / 2
+        phase_times[E_P] = phase_times[E_P] + delta
+        phase_times[S_C] = phase_times[S_C] - delta
+        # `start_dissection` and `end_clipping` 
+        delta = (phase_times[S_D] - phase_times[E_C]) / 2
+        phase_times[E_C] = phase_times[E_C] + delta
+        phase_times[S_D] = phase_times[S_D] - delta
+        # `start_haemostasis_1` and `end_dissection`
+        delta = (phase_times[S_H1] - phase_times[E_D]) / 2
+        phase_times[E_D] = phase_times[E_D] + delta
+        phase_times[S_H1] = phase_times[S_H1] - delta
+        # `start_retrieval` and `end_haemostasis_1`
+        delta = (phase_times[S_R] - phase_times[E_H1]) / 2
+        phase_times[E_D] = phase_times[E_D] + delta
+        phase_times[S_H1] = phase_times[S_H1] - delta
+        # `start_haemostasis_2` and `end_retrieval`
+        delta = (phase_times[S_H2] - phase_times[E_R]) / 2
+        phase_times[E_R] = phase_times[E_R] + delta
+        phase_times[S_H2] = phase_times[S_H2] - delta
+        # `end_operation` and `end_haemostasis_2`
+        delta = (phase_times[E_O] - phase_times[E_H2]) / 2
+        phase_times[E_H2] = phase_times[E_H2] + delta
+        phase_times[E_O] = phase_times[E_O] - delta   
         
         for j in range(len(img_list)):
             img_timestamp = img_list[j].split(videos[i]+"/"+videos[i]+"_")[1].split(".png")[0]
             vid_df.at[j, "time"] = float(img_timestamp)
             
-            # Dropping frames before `start_preparation` and after `end_operation` 
-            if ( (phase_times[S_P] is not None) and (img_timestamp < phase_times[S_O]) ) or ( (phase_times[E_O] is not None) and (img_timestamp > phase_times[E_O]) ) :
-                vid_df.drop(j, inplace=True)
+            # assigning `pre-preparation` frames 
+            if (phase_times[S_P] is not None) and (img_timestamp < phase_times[S_P]):
+                vid_df.at(j, "class") = 0
         
 
         print(f'number of frames: {len(vid_df["image_path"])}')
