@@ -31,12 +31,18 @@ def write_pkl(root_dir):
     S_H2 = "start_haemostasis_2"
     E_H2 = "end_haemostasis_2"
     E_O = "end_operation"
+    start_list = [S_P, S_C, S_D, S_H1, S_R, S_H2]
+    end_dictionary = {"start_preparation": E_P, "start_clipping": E_C, 
+                        "start_dissection": E_D, "start_haemostasis_1": E_H1, 
+                        "start_retrieval": E_R, "start_haemostasis_2": E_H2}
 
     # dataframe for all videos of the form `video_id`|`path_to_frame`|`timestamp_of_frame`|`phase_label` 
     test_df = pd.DataFrame(columns=[
         "video_idx", "image_path", "time", "class"])
+    
     # list of directories containing the frames of each video
-    videos = os.listdir(img_base_path)
+    videos = [folder for folder in img_base_path.iterdir() if folder.is_dir()]
+    # videos = os.listdir(img_base_path)
 
     # iterating over each video directory
     for i in tqdm( range(0, len(videos)) ):
@@ -51,54 +57,62 @@ def write_pkl(root_dir):
         # update the frame paths in `vid_df`
         vid_df["image_path"] = img_list
         # update the video id in `vid_df`
-        vid_df["video_idx"] = videos[i]
+        vid_df["video_idx"] = int(img_list[0].split('/')[0])
 
         # reading in `.csv` file containing the time-stamps of different phases for current video
-        with open(csv_path / f"{videos[i]}.csv", "r") as file:
-            columns = file.readline().split(',')
+        with open(csv_path / f"{img_list[0].split('/')[0]}.csv", "r") as file:
+            columns = file.readline().strip().split(',')
             values = [float(val_str) if val_str else None for val_str in file.readline().split(',')]
         # creating a dictionary of `phase`:`time-stamp`
         phase_times = {}
         for col in range(2, len(columns)):
             phase_times[columns[col]] = values[col]
         
-        # token to account for delta between phase changes
-        delta = 0.0
-        for phase in range(0, )
-        # accounting for delta between phases
-        # `start_clipping` and `end_preparation` 
-        delta = (phase_times[S_C] - phase_times[E_P]) / 2
-        phase_times[E_P] = phase_times[E_P] + delta
-        phase_times[S_C] = phase_times[S_C] - delta
-        # `start_dissection` and `end_clipping` 
-        delta = (phase_times[S_D] - phase_times[E_C]) / 2
-        phase_times[E_C] = phase_times[E_C] + delta
-        phase_times[S_D] = phase_times[S_D] - delta
-        # `start_haemostasis_1` and `end_dissection`
-        delta = (phase_times[S_H1] - phase_times[E_D]) / 2
-        phase_times[E_D] = phase_times[E_D] + delta
-        phase_times[S_H1] = phase_times[S_H1] - delta
-        # `start_retrieval` and `end_haemostasis_1`
-        delta = (phase_times[S_R] - phase_times[E_H1]) / 2
-        phase_times[E_D] = phase_times[E_D] + delta
-        phase_times[S_H1] = phase_times[S_H1] - delta
-        # `start_haemostasis_2` and `end_retrieval`
-        delta = (phase_times[S_H2] - phase_times[E_R]) / 2
-        phase_times[E_R] = phase_times[E_R] + delta
-        phase_times[S_H2] = phase_times[S_H2] - delta
-        # `end_operation` and `end_haemostasis_2`
-        delta = (phase_times[E_O] - phase_times[E_H2]) / 2
-        phase_times[E_H2] = phase_times[E_H2] + delta
-        phase_times[E_O] = phase_times[E_O] - delta   
+        print(f'\nOriginal phase times:\n{phase_times}\n')
         
+        for start_time in start_list:
+            if start_time == S_P:
+                last_seen = start_time
+
+            elif phase_times[start_time]:
+                end_lastseen = end_dictionary[last_seen]
+                delta = (phase_times[start_time] - phase_times[end_lastseen]) / 2
+                phase_times[start_time] = phase_times[start_time] - delta
+                phase_times[end_lastseen] = phase_times[end_lastseen] + delta
+                last_seen = start_time      
+        
+        print(f'\nUpdated phase times:\n{phase_times}\n')
+
+        # iterating over frames
         for j in range(len(img_list)):
             img_timestamp = img_list[j].split(videos[i]+"/"+videos[i]+"_")[1].split(".png")[0]
             vid_df.at[j, "time"] = float(img_timestamp)
             
             # assigning `pre-preparation` frames 
-            if (phase_times[S_P] is not None) and (img_timestamp < phase_times[S_P]):
-                vid_df.at(j, "class") = 0
-        
+            if (img_timestamp < phase_times[S_P]):
+                vid_df.at[j, "class"] = 0
+            
+            elif phase_times[S_P] <= img_timestamp <= phase_times[E_P]:
+                vid_df.at[j, "class"] = 1
+            
+            elif phase_times[S_C] and (phase_times[S_C] <= img_timestamp <= phase_times[E_C]):
+                vid_df.at[j, "class"] = 2
+            
+            elif phase_times[S_D] and (phase_times[S_D] <= img_timestamp <= phase_times[E_D]):
+                vid_df.at[j, "class"] = 3
+            
+            elif phase_times[S_H1] and (phase_times[S_H1] <= img_timestamp <= phase_times[E_H1]):
+                vid_df.at[j, "class"] = 4
+            
+            elif phase_times[S_R] and (phase_times[S_R] <= img_timestamp <= phase_times[E_R]):
+                vid_df.at[j, "class"] = 5
+            
+            elif phase_times[S_H2] and (phase_times[S_H2] <= img_timestamp <= phase_times[E_H2]):
+                vid_df.at[j, "class"] = 6
+            
+            else:
+                vid_df.at[j, "class"] = 7
+
 
         print(f'number of frames: {len(vid_df["image_path"])}')
               

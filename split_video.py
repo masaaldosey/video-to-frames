@@ -40,22 +40,23 @@ def videos_to_imgs(output_path=None,
         with open(f'{out_folder/file_name}.txt') as file:
             for line in file:
                 (key, val) = line.strip().split(",")
-                key = float(key)
-                times_dict[val] = key
+                times_dict[val] = f'{float(key):.2f}'
 
         # Adding time-stamp corresponding to each frame in its name
         frames = list(out_folder.glob("*.png"))
         frames.sort()
         os.chdir(out_folder)
         # Renaming loop
+        count = 0
         for frame in frames:
             try:
-                new_name = file_name + '_f' + frame.name.split('_')[1].split('.')[0] + '_t' + f'{times_dict[frame.stem.split("_")[1]]}' + '.png'
+                new_name = file_name + '_f' + frame.name.split('_')[1].split('.')[0] + '_' + f'{times_dict[frame.stem.split("_")[1]]}' + '.png'
 
                 frame.rename(new_name)
 
             except:
                 frame.unlink()
+            count += 1
         # Print to terminal after completion of extracting each video
         print("Done extracting: {}".format(i + 1))
 
