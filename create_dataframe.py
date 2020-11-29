@@ -6,6 +6,15 @@ from tqdm import tqdm
 import numpy as np
 
 
+def sort_bytime(fname):
+    """Function to sort the frames by time-stamp
+
+    :param fname: relative path of the frame
+    :return: time-stamp of the frame
+    """
+    return(fname.split('_')[2].split('.png')[0])
+
+
 def write_pkl(root_dir):
     print("Writing .csv files...")
     # root path
@@ -31,8 +40,10 @@ def write_pkl(root_dir):
     S_H2 = "start_haemostasis_2"
     E_H2 = "end_haemostasis_2"
     E_O = "end_operation"
-    start_list = [S_P, S_C, S_D, S_H1, S_R, S_H2]
-    end_dictionary = {"start_preparation": E_P, "start_clipping": E_C, 
+    # List of start times of various phases except `start_preparation`
+    start_times = [S_P, S_C, S_D, S_H1, S_R, S_H2]
+    # Dictionary where `key:value` = `start_*:end_*`
+    end_times = {"start_preparation": E_P, "start_clipping": E_C, 
                         "start_dissection": E_D, "start_haemostasis_1": E_H1, 
                         "start_retrieval": E_R, "start_haemostasis_2": E_H2}
 
@@ -42,7 +53,6 @@ def write_pkl(root_dir):
     
     # list of directories containing the frames of each video
     videos = [folder for folder in img_base_path.iterdir() if folder.is_dir()]
-    # videos = os.listdir(img_base_path)
 
     # iterating over each video directory
     for i in tqdm( range(0, len(videos)) ):
@@ -51,10 +61,13 @@ def write_pkl(root_dir):
         # path to frames of current video 
         img_path_for_vid = img_base_path / f"{videos[i]}"
         # list of frames of current video
-        img_list = sorted(img_path_for_vid.glob('*.png'))
+        img_list = img_path_for_vid.glob('*.png')
         # extracting relative path for frames and converting it to `str`
         img_list = [str(i.relative_to(img_base_path)) for i in img_list]
-        # update the frame paths in `vid_df`
+        # sorting the frames by their time-stamp
+        img_list = sorted(img_list, key=sort_bytime)
+      
+    # update the frame paths in `vid_df`
         vid_df["image_path"] = img_list
         # update the video id in `vid_df`
         vid_df["video_idx"] = int(img_list[0].split('/')[0])
@@ -69,51 +82,52 @@ def write_pkl(root_dir):
             phase_times[columns[col]] = values[col]
         
         print(f'\nOriginal phase times:\n{phase_times}\n')
-        
-        for start_time in start_list:
+
+        for start_time in start_times:
             if start_time == S_P:
-                last_seen = start_time
+                # last_seen = start_time
+                last_seen = end_times[start_time]
 
             elif phase_times[start_time]:
-                end_lastseen = end_dictionary[last_seen]
-                delta = (phase_times[start_time] - phase_times[end_lastseen]) / 2
+                # end_lastseen = end_times[last_seen]
+                delta = (phase_times[start_time] - phase_times[last_seen]) / 2
                 phase_times[start_time] = phase_times[start_time] - delta
-                phase_times[end_lastseen] = phase_times[end_lastseen] + delta
-                last_seen = start_time      
+                phase_times[last_seen] = phase_times[last_seen] + delta
+                last_seen = end_times[start_time]      
         
         print(f'\nUpdated phase times:\n{phase_times}\n')
 
         # iterating over frames
         for j in range(len(img_list)):
-            img_timestamp = img_list[j].split(videos[i]+"/"+videos[i]+"_")[1].split(".png")[0]
-            vid_df.at[j, "time"] = float(img_timestamp)
+            img_timestamp = float(img_list[j].split('_')[2].split('.png')[0])
+            vid_df.at[j, "time"] = img_timestamp
             
-            # assigning `pre-preparation` frames 
+            # `pre-preparation = 0` frames 
             if (img_timestamp < phase_times[S_P]):
                 vid_df.at[j, "class"] = 0
-            
+            # `preparation = 1` frames
             elif phase_times[S_P] <= img_timestamp <= phase_times[E_P]:
                 vid_df.at[j, "class"] = 1
-            
+            # `clipping = 2` frames
             elif phase_times[S_C] and (phase_times[S_C] <= img_timestamp <= phase_times[E_C]):
                 vid_df.at[j, "class"] = 2
-            
+            # `dissection = 3` frames
             elif phase_times[S_D] and (phase_times[S_D] <= img_timestamp <= phase_times[E_D]):
                 vid_df.at[j, "class"] = 3
-            
+            # `haemostasis_1 = 4` frames
             elif phase_times[S_H1] and (phase_times[S_H1] <= img_timestamp <= phase_times[E_H1]):
                 vid_df.at[j, "class"] = 4
-            
+            # `retrieval = 5` frames
             elif phase_times[S_R] and (phase_times[S_R] <= img_timestamp <= phase_times[E_R]):
                 vid_df.at[j, "class"] = 5
-            
+            # `haemostasis_2 = 6` frames
             elif phase_times[S_H2] and (phase_times[S_H2] <= img_timestamp <= phase_times[E_H2]):
                 vid_df.at[j, "class"] = 6
-            
+            # `end_operation = 7` frames
             else:
                 vid_df.at[j, "class"] = 7
 
-
+        # printing #frames and
         print(f'number of frames: {len(vid_df["image_path"])}')
               
         print(
@@ -128,6 +142,7 @@ def write_pkl(root_dir):
 
 
 if __name__ == "__main__":
+    # Formatting to display all columns of the dataframe
     pd.set_option('display.max_columns', None)
     root_dir = "/home/prabhat/Videos"
     write_pkl(root_dir)
