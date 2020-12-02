@@ -23,7 +23,7 @@ def write_pkl(root_dir):
     img_base_path = root_dir / "output"
     # path containing phase time-stamps for each video
     csv_path = root_dir / "csv"
-    # path to save `.csv` files
+    # path to save dataframe file
     out_path = root_dir
 
     # tokens for column names in `.csv` files
@@ -54,6 +54,9 @@ def write_pkl(root_dir):
     # list of directories containing the frames of each video
     videos = [folder for folder in img_base_path.iterdir() if folder.is_dir()]
 
+    # counter for total number of frames
+    total_frames = 0
+
     # iterating over each video directory
     for i in tqdm( range(0, len(videos)) ):
         # temporary dataframe for current video
@@ -76,13 +79,13 @@ def write_pkl(root_dir):
         with open(csv_path / f"{img_list[0].split('/')[0]}.csv", "r") as file:
             columns = file.readline().strip().split(',')
             values = [float(val_str) if val_str else None for val_str in file.readline().split(',')]
-        # creating a dictionary of `phase`:`time-stamp`
+        # creating a dictionary of `key:value` = `phase:time-stamp`
         phase_times = {}
         for col in range(2, len(columns)):
             phase_times[columns[col]] = values[col]
         
+        # accounting for delta between phase change
         print(f'\nOriginal phase times:\n{phase_times}\n')
-
         for start_time in start_times:
             if start_time == S_P:
                 # last_seen = start_time
@@ -94,12 +97,11 @@ def write_pkl(root_dir):
                 phase_times[start_time] = phase_times[start_time] - delta
                 phase_times[last_seen] = phase_times[last_seen] + delta
                 last_seen = end_times[start_time]      
-        
         print(f'\nUpdated phase times:\n{phase_times}\n')
 
         # iterating over frames
         for j in range(len(img_list)):
-            img_timestamp = float(img_list[j].split('_')[2].split('.png')[0])
+            img_timestamp = float(img_list[j].split('_t')[1].split('.png')[0])
             vid_df.at[j, "time"] = img_timestamp
             
             # `pre-preparation = 0` frames 
@@ -127,6 +129,9 @@ def write_pkl(root_dir):
             else:
                 vid_df.at[j, "class"] = 7
 
+        # update total number of frames
+        total_frames += len(img_list)
+
         # printing #frames and
         print(f'number of frames: {len(vid_df["image_path"])}')
               
@@ -135,10 +140,14 @@ def write_pkl(root_dir):
         )
         test_df = test_df.append(vid_df, ignore_index=True, sort=False)
 
+
     print("DONE")
     print(test_df.shape)
     print(test_df.columns)
+    # test_df.groupby("class").count()["time"]
+    # test_df.groupby(["class", "video_idx"]).count()
     test_df.to_csv(out_path / "test.csv")
+    # test_df.to_pickle(out_path / "MITI_split_250px_25fps.pkl")
 
 
 if __name__ == "__main__":
