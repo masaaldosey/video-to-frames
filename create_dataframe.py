@@ -41,18 +41,21 @@ def write_pkl(root_dir):
     E_H2 = "end_haemostasis_2"
     E_O = "end_operation"
     # List of start times of various phases except `start_preparation`
-    start_times = [S_P, S_C, S_D, S_H1, S_R, S_H2]
+    # change naming - phase_start_list
+    phase_start_list = [S_P, S_C, S_D, S_H1, S_R, S_H2, E_O]
     # Dictionary where `key:value` = `start_*:end_*`
-    end_times = {"start_preparation": E_P, "start_clipping": E_C, 
-                        "start_dissection": E_D, "start_haemostasis_1": E_H1, 
-                        "start_retrieval": E_R, "start_haemostasis_2": E_H2}
+    # change naming - start_endphase_dict
+    start_endphase_dict = {S_P: E_P, S_C: E_C, 
+                        S_D: E_D, S_H1: E_H1, 
+                        S_R: E_R, S_H2: E_H2}
 
     # dataframe for all videos of the form `video_id`|`path_to_frame`|`timestamp_of_frame`|`phase_label` 
     test_df = pd.DataFrame(columns=[
         "video_idx", "image_path", "time", "class"])
     
     # list of directories containing the frames of each video
-    videos = [folder for folder in img_base_path.iterdir() if folder.is_dir()]
+    videos = sorted( [folder for folder in img_base_path.iterdir() if folder.is_dir()] )
+
 
     # counter for total number of frames
     total_frames = 0
@@ -86,53 +89,45 @@ def write_pkl(root_dir):
         
         # accounting for delta between phase change
         print(f'\nOriginal phase times:\n{phase_times}\n')
-        for start_time in start_times:
-            if start_time == S_P:
-                # last_seen = start_time
-                last_seen = end_times[start_time]
+        for phase in phase_start_list:
+            if phase == S_P:
+                # phase_end = phase_start
+                phase_end = start_endphase_dict[phase]
+            
+            elif phase == E_O:
+                phase_times[phase_end] = phase_times[E_O] 
 
-            elif phase_times[start_time]:
-                # end_lastseen = end_times[last_seen]
-                delta = (phase_times[start_time] - phase_times[last_seen]) / 2
-                phase_times[start_time] = phase_times[start_time] - delta
-                phase_times[last_seen] = phase_times[last_seen] + delta
-                last_seen = end_times[start_time]      
+            elif phase_times[phase]:
+                # end_lastseen = start_endphase_dict[phase_end]
+                delta = (phase_times[phase] - phase_times[phase_end]) / 2
+                phase_times[phase] = phase_times[phase] - delta
+                phase_times[phase_end] = phase_times[phase_end] + delta
+                phase_end = start_endphase_dict[phase]  
         print(f'\nUpdated phase times:\n{phase_times}\n')
 
         # iterating over frames
+        frame_timestamps = []
         for j in range(len(img_list)):
             img_timestamp = float(img_list[j].split('_t')[1].split('.png')[0])
-            vid_df.at[j, "time"] = img_timestamp
-            
-            # `pre-preparation = 0` frames 
-            if (img_timestamp < phase_times[S_P]):
-                vid_df.at[j, "class"] = 0
-            # `preparation = 1` frames
-            elif phase_times[S_P] <= img_timestamp <= phase_times[E_P]:
-                vid_df.at[j, "class"] = 1
-            # `clipping = 2` frames
-            elif phase_times[S_C] and (phase_times[S_C] <= img_timestamp <= phase_times[E_C]):
-                vid_df.at[j, "class"] = 2
-            # `dissection = 3` frames
-            elif phase_times[S_D] and (phase_times[S_D] <= img_timestamp <= phase_times[E_D]):
-                vid_df.at[j, "class"] = 3
-            # `haemostasis_1 = 4` frames
-            elif phase_times[S_H1] and (phase_times[S_H1] <= img_timestamp <= phase_times[E_H1]):
-                vid_df.at[j, "class"] = 4
-            # `retrieval = 5` frames
-            elif phase_times[S_R] and (phase_times[S_R] <= img_timestamp <= phase_times[E_R]):
-                vid_df.at[j, "class"] = 5
-            # `haemostasis_2 = 6` frames
-            elif phase_times[S_H2] and (phase_times[S_H2] <= img_timestamp <= phase_times[E_H2]):
-                vid_df.at[j, "class"] = 6
-            # `end_operation = 7` frames
-            else:
-                vid_df.at[j, "class"] = 7
+            frame_timestamps.append(img_timestamp)
+        
+        # list of img_timestamps and concatenate with vid_df as a column
+        vid_df["time"] = frame_timestamps
 
-        # update total number of frames
-        total_frames += len(img_list)
-
-        # printing #frames and
+        # assigning class label to each frame
+        vid_df["class"] = None
+        # pre-preparation = 0
+        vid_df["class"].loc[vid_df["time"] < phase_times[S_P]] = 0
+        phase_list = [[S_P, E_P], [S_C, E_C], [S_D, E_D], [S_H1, E_H1], [S_R, E_R], [S_H2, E_H2]]
+        # counter of class labels (preparation=1, clipping=2, dissection=3, haemostasis1=4, retrieval=5, haemostasis2=6)
+        class_num = 1
+        for start, end in phase_list:
+            vid_df["class"].loc[(phase_times[start] <= vid_df["time"]) & ( vid_df["time"] < phase_times[end])] = class_num
+            class_num += 1
+        # assigning extra-frames to last surgical phase
+        vid_df.loc[vid_df["class"].isna()] = vid_df["class"].max()
+        
+        # printing video summary to terminal
         print(f'number of frames: {len(vid_df["image_path"])}')
               
         print(
@@ -142,9 +137,10 @@ def write_pkl(root_dir):
 
 
     print("DONE")
-    print(test_df.shape)
-    print(test_df.columns)
-    # test_df.groupby("class").count()["time"]
+    print(f'test_df shape: {test_df.shape}')
+    print(f'columns of test_df: {test_df.columns}')
+    print(f'total number of frames in dataset: {test_df.shape[0]}')
+    print(f'frames in each class: \n{test_df.groupby("class").count()["time"]}')
     # test_df.groupby(["class", "video_idx"]).count()
     test_df.to_csv(out_path / "test.csv")
     # test_df.to_pickle(out_path / "MITI_split_250px_25fps.pkl")

@@ -1,6 +1,5 @@
 import os, sys
 import glob
-import decimal
 from tqdm import tqdm
 from pathlib import Path
 
