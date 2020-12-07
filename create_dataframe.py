@@ -105,7 +105,7 @@ def write_pkl(root_dir):
                 phase_end = start_endphase_dict[phase]  
         print(f'\nUpdated phase times:\n{phase_times}\n')
 
-        # iterating over frames
+        # iterating over frames and fetching timestamps of each
         frame_timestamps = []
         for j in range(len(img_list)):
             img_timestamp = float(img_list[j].split('_t')[1].split('.png')[0])
@@ -125,6 +125,7 @@ def write_pkl(root_dir):
             vid_df["class"].loc[(phase_times[start] <= vid_df["time"]) & ( vid_df["time"] < phase_times[end])] = class_num
             class_num += 1
         # assigning extra-frames to last surgical phase
+        # assumes all previous frames are assigned to one of the above mentioned phases
         vid_df.loc[vid_df["class"].isna()] = vid_df["class"].max()
         
         # printing video summary to terminal
@@ -136,6 +137,7 @@ def write_pkl(root_dir):
         test_df = test_df.append(vid_df, ignore_index=True, sort=False)
 
 
+    # printing entire dataset summary to terminal
     print("DONE")
     print(f'test_df shape: {test_df.shape}')
     print(f'columns of test_df: {test_df.columns}')
