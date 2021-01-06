@@ -6,7 +6,19 @@ from pathlib import Path
 
 def videos_to_imgs(output_path=None,
                    input_path=None,
-                   pattern="*.mp4"):
+                   pattern='*.mp4'):
+    """Function to split an input video into frames. It saves the frames with
+    a naming convention `videoname_f000000_t0000.00.png` where - second term represents 
+    the frame number and the third term represents its corresponding time-stamp. This function scales down
+    the video to a `250x250` resolution and also saves a `.txt` file containing time-stamps of the extracted
+    frames for additional use by the user. User can put multiple videos in a directory under `input_path` and
+    the extracted frames for each video will be stored in its own separate directory under `output_path`.
+
+    Args:
+        output_path (Path): Absolute path to the directory to store the extracted frames. Defaults to None.
+        input_path (Path): Absolute path to the directory which contains the videos to extract frames from. Defaults to None.
+        pattern (str, optional): Extension of the video files to extract frames from. Defaults to `*.mp4`.
+    """
 
     output_path = Path(output_path)
     input_path = Path(input_path)
@@ -25,6 +37,7 @@ def videos_to_imgs(output_path=None,
         out_folder = output_path / file_name
         out_folder.mkdir(exist_ok=True)
 
+        print(f'Start Writing time-stamps for Video {i+1}')
         # Writing time-stamps of each frame to `.txt` file
         os.system(
             f'ffprobe {video_path} -select_streams v -show_entries frame=coded_picture_number,pkt_pts_time -of csv=p=0:nk=1 -v 0 > {out_folder/file_name}.txt'
@@ -38,17 +51,20 @@ def videos_to_imgs(output_path=None,
         times_dict = {}
         with open(f'{out_folder/file_name}.txt') as file:
             for line in file:
-                (key, val) = line.strip().split(",")
+                (key, val) = line.strip().split(',')
                 times_dict[val] = f'{float(key):.2f}'
+        print(f'End Writing time-stamps for Video {i+1}')
 
         # Adding time-stamp corresponding to each frame in its name
-        frames = list(out_folder.glob("*.png"))
+        frames = list(out_folder.glob('*.png'))
         frames.sort()
         os.chdir(out_folder)
-        # Renaming loop
+        # Rename loop. 
         for frame in frames:
             try:
-                new_name = file_name + '_f' + frame.name.split('_')[1].split('.')[0] + '_t' + f'{times_dict[frame.stem.split("_")[1]]}' + '.png'
+                # vidname_f000000_t0000.00.png
+                new_name = (file_name + '_f' + format(int(frame.name.split('_')[1].split('.')[0]), '06d') + 
+                            '_t' + format(float(times_dict[frame.stem.split("_")[1]]), '07.2f') + '.png') 
 
                 frame.rename(new_name)
 
@@ -56,10 +72,12 @@ def videos_to_imgs(output_path=None,
                 frame.unlink()
         
         # Print to terminal after completion of extracting each video
-        print("Done extracting: {}".format(i + 1))
+        print(f'Done extracting: {i+1}')
+        print(f'Number of frames extracted from Video {i+1}: {len(frames)}')
 
 
 if __name__ == "__main__":
-    videos_to_imgs(output_path="/home/prabhat/Videos/output",
-                    input_path="/home/prabhat/Videos/input", 
-                    pattern="*.mp4")
+    # Change `output_path` and `input_path` accordingly
+    videos_to_imgs(output_path='/home/prabhat/Videos/output',
+                    input_path='/home/prabhat/Videos/input', 
+                    pattern='*.mp4')
